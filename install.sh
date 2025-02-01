@@ -1,157 +1,243 @@
 #!/bin/sh
 
-# Create working directory
-mkdir PPPwn_WRT-main
-if [ $? -ne 0 ]; then
-    echo "Failed to create directory PPPwn_WRT-main"
-    exit 1
-fi
+cat <<"EOF"
+______________________________                       
+\______   \______   \______   \__  _  ______  
+ |     ___/|     ___/|     ___/\ \/ \/ /    \ 
+ |    |    |    |    |    |     \     /   |  \     
+ |____|    |____|    |____|      \/\_/|___|  /    
+                                           \/       
+ __                 __      _____                    
+|  |  __ __   ____ |  | ___/ ____\_______  ___      
+|  | |  |  \_/ ___\|  |/ /\   __\/  _ \  \/  / 
+|  |_|  |  /\  \___|    <  |  | (  <_> >    <      
+|____/____/  \____>__|___\ |__|  \____/__/\__\  
+EOF
 
-# Change to working directory
-cd PPPwn_WRT-main
-if [ $? -ne 0 ]; then
-    echo "Failed to change to directory PPPwn_WRT-main"
-    exit 1
-fi
+echo ""
+echo "★ v1.2.2 ★"
+echo ""
+echo "by: https://github.com/0x1iii1ii/PPPwn-Luckfox"
+echo "credit to:"
+echo "https://github.com/TheOfficialFloW/PPPwn for pppwn"
+echo "https://github.com/xfangfang/PPPwn_cpp for pppwn cpp"
+echo "https://github.com/harsha-0110/PPPwn-Luckfox for webserver"
+echo ""
 
-# Download scripts
-wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/run.sh
-if [ $? -ne 0 ]; then
-    echo "Failed to download run.sh"
-    exit 1
-fi
+# Constants
+Green='\033[0;32m'   # Green
+Yellow='\033[0;33m'  # Yellow
+BGreen='\033[1;32m'  # Bold Green
+BYellow='\033[1;33m' # Bold Yellow
+BCyan='\033[1;36m'   # Cyan
+NC='\033[0m'         # No Color
 
-wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/kill.sh
-if [ $? -ne 0 ]; then
-    echo "Failed to download kill.sh"
-    exit 1
-fi
+CURRENT_DIR=$(pwd)
+LOG_DIR="/var/log/pppwn.log"
+WEB_DIR="/var/www/data"
+WEB_CONF="/etc/nginx"
+CONFIG_DIR="/etc/pppwn"
+CONFIG_FILE="$CONFIG_DIR/config.json"
 
-# Capture the output of uname -m
-machine_arch=$(uname -m)
+# Display the list of firmware versions
+echo "Please select your PS4 firmware version:"
+echo "a) 9.00"
+echo "b) 9.60"
+echo "c) 10.00"
+echo "d) 10.01"
+echo "e) 11.00"
 
-# Choose script based on the architecture
-if echo "$machine_arch" | grep -q "arch64"; then
-    wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/pppwn_arch64
-    if [ $? -ne 0 ]; then
-        echo "Failed to download pppwn_arch64"
-        exit 1
-    fi
-    chmod +x pppwn_arch64
-elif echo "$machine_arch" | grep -q "armv7"; then
-    wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/pppwn_armv7
-    if [ $? -ne 0 ]; then
-        echo "Failed to download pppwn_armv7"
-        exit 1
-    fi
-    chmod +x pppwn_armv7
-elif echo "$machine_arch" | grep -q "x86_64"; then
-    wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/pppwn_x86_64
-    if [ $? -ne 0 ]; then
-        echo "Failed to download pppwn_x86_64"
-        exit 1
-    fi
-    chmod +x pppwn_x86_64
-elif echo "$machine_arch" | grep -q "mips"; then
-    opkg install lscpu
+# Prompt the user for the selection
+while true; do
+    # Firmware selection
+    echo ""
+    read -p "Enter your choice (a/b/c/d/e): " FW_CHOICE
+    case $FW_CHOICE in
+    a)
+        FW_VERSION="900"
+        READABLE_FW_VERSION="9.00"
+        ;;
+    b)
+        FW_VERSION="960"
+        READABLE_FW_VERSION="9.60"
+        ;;
+    c)
+        FW_VERSION="1000"
+        READABLE_FW_VERSION="10.00"
+        ;;
+    d)
+        FW_VERSION="1001"
+        READABLE_FW_VERSION="10.01"
+        ;;
+    e)
+        FW_VERSION="1100"
+        READABLE_FW_VERSION="11.00"
+        ;;
+    *) echo "Invalid choice. Please select a valid option." ;;
+    esac
 
-    # Get byte order
-    BYTE_ORDER=$(lscpu | grep "Byte Order" | awk '{print $3, $4}')
-    
-    if [ "$BYTE_ORDER" == "Big Endian" ]; then
-        wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/pppwn_mips
-        if [ $? -ne 0 ]; then
-            echo "Failed to download pppwn_mips"
-            exit 1
+    # Confirmation of firmware version
+    if [ -n "$READABLE_FW_VERSION" ]; then
+        echo -e "You have selected firmware version ${BGreen}$READABLE_FW_VERSION${NC}. Is this correct? (y/n)"
+        read -p "Enter your choice: " CONFIRMATION
+        if [ "$CONFIRMATION" = "y" ]; then
+            break
+        else
+            echo "Firmware selection not confirmed. Please select again."
+            FW_CHOICE=""
+            CONFIRMATION=""
         fi
-        chmod +x pppwn_mips
+    fi
+done
+
+# Ask if the user wants to use the web server
+while true; do
+    echo ""
+    echo -e "Do you want to use the ${BGreen}Web Server${NC} features? (y/n)"
+    read -p "Enter your choice: " USE_WEBSERVER
+    if [[ "$USE_WEBSERVER" == "y" || "$USE_WEBSERVER" == "n" ]]; then
+        READABLE_WEBSERVER=$([ "$USE_WEBSERVER" = "y" ] && echo "yes" || echo "no")
+        if [[ "$USE_WEBSERVER" == "y" ]]; then
+            HALT_CHOICE="false"
+            READABLE_HALT_CHOICE="no"
+            break
+        else
+            # If they don't want to use the web server, ask if they want to shut down the device
+            while true; do
+                echo ""
+                echo "Do you want your luckfox to shutdown after successfully jailbreak? (y/n)"
+                read -p "Enter your choice: " HALT
+                if [[ "$HALT" == "y" || "$HALT" == "n" ]]; then
+                    READABLE_HALT_CHOICE=$([ "$HALT" = "y" ] && echo "yes" || echo "no")
+                    HALT_CHOICE=$([ "$HALT" = "y" ] && echo "true" || echo "false")
+                    break
+                else
+                    echo "Invalid choice. Please enter 'y' or 'n'."
+                fi
+            done
+            break
+        fi
     else
-        wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/pppwn_mipsel
-        if [ $? -ne 0 ]; then
-            echo "Failed to download pppwn_mipsel"
-            exit 1
-        fi
-        chmod +x pppwn_mipsel
+        echo "Invalid choice. Please enter 'y' or 'n'."
     fi
-else
-    echo "Unsupported architecture: $machine_arch"
-    exit 1
-fi
+done
 
-# Select interface
-ip link
-echo
-read -p "Select your network interface i.e: br-lan: " network_interface
-echo "$network_interface" > settings.cfg
-echo
+echo ""
+echo "Please select the pppwn executable you want to use:"
+echo -e "a) ${BGreen}pppwn${NC} - a normal stable release for some PS4 models"
+echo -e "b) ${BGreen}pppwn_ipv6${NC} - an update IPV6 which compatible for all PS4 models"
+echo ""
+echo -e "${BYellow}Note:${NC} if your PS4 doesn't work with \"pppwn\", try \"pppwn_ipv6\" by redo installation again or config from webserver"
 
-# Firmware
-echo
-read -p "Select your PS4 firmware (9.00/9.60/10.00/10.01/10.50/10.70/10.71/11.00): " firmware
-if [ "$firmware" = "11.00" ] || [ "$firmware" = "10.01" ] || [ "$firmware" = "10.00" ] || [ "$firmware" = "9.00" ] || [ "$firmware" = "9.60" ] || [ "$firmware" = "10.50" ] || [ "$firmware" = "10.70" ] || [ "$firmware" = "10.71" ]; then
-    echo ${firmware//.} >> settings.cfg
-    wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/stage1_${firmware//.}.bin
-    if [ $? -ne 0 ]; then
-        echo "Failed to download stage1_${firmware//.}.bin"
+while true; do
+    read -p "Enter your choice (a/b): " PPPWN_CHOICE
+    case $PPPWN_CHOICE in
+    a)
+        PPPWN_EXEC="pppwn"
+        READABLE_PPPWN_EXEC="PPPwn"
+        break
+        ;;
+    b)
+        PPPWN_EXEC="pppwn_ipv6"
+        READABLE_PPPWN_EXEC="PPPwn IPV6"
+        break
+        ;;
+    *) echo "Invalid choice. Please select a valid option." ;;
+    esac
+done
+
+confirm_settings() {
+    echo ""
+    echo -e "${BCyan}You have selected the following settings:${NC}"
+    echo -e "PS4 Firmware: ${BGreen}$1${NC}"
+    echo -e "PPPwn executable: ${BGreen}$2${NC}"
+    echo -e "Web Server: ${BGreen}$4${NC}"
+    echo -e "Shutdown after jailbreak: ${BGreen}$3${NC}"
+    echo ""
+    read -p "Are these settings correct? (y/n): " SETTINGS_CONFIRMATION
+    if [[ $SETTINGS_CONFIRMATION != "y" ]]; then
+        echo -e "${Red}Settings not confirmed. Exiting.${NC}"
         exit 1
     fi
-    wget https://github.com/sherifpsfix/PPPwn_WRT/raw/main/stage2_${firmware//.}.bin
-    if [ $? -ne 0 ]; then
-        echo "Failed to download stage2_${firmware//.}.bin"
+}
+
+confirm_settings "$READABLE_FW_VERSION" "$READABLE_PPPWN_EXEC" "$READABLE_HALT_CHOICE" "$READABLE_WEBSERVER"
+
+# Create configuration directory if it doesn't exist
+if [ ! -d "$CONFIG_DIR" ]; then
+    mkdir -p $CONFIG_DIR
+fi
+
+# Create the config.json file with the install directory if it doesn't exist
+if [ ! -f "$CONFIG_FILE" ]; then
+    cat >$CONFIG_FILE <<EOL
+{
+    "FW_VERSION": "$FW_VERSION",
+    "TIMEOUT": "5",
+    "WAIT_AFTER_PIN": "5",
+    "GROOM_DELAY": "4",
+    "BUFFER_SIZE": "0",
+    "AUTO_RETRY": true,
+    "NO_WAIT_PADI": true,
+    "REAL_SLEEP": false,
+    "AUTO_START": true,
+	"HALT_CHOICE": $HALT_CHOICE,
+	"PPPWN_EXEC": "$PPPWN_EXEC",
+    "install_dir": "$CURRENT_DIR",
+    "log_file": "$LOG_DIR",
+    "shutdown_flag": false,
+    "execute_flag": false,
+    "eth0_flag": false
+}
+EOL
+    chmod 777 $CONFIG_FILE
+fi
+
+# Remove the web directory if it already exists
+if [ -d "$WEB_DIR" ]; then
+    rm -rf $WEB_DIR
+fi
+
+if [ "$HALT_CHOICE" != "true" ]; then
+
+    # Set up the web directory
+    mkdir -p $WEB_DIR
+    cp -r $CURRENT_DIR/web/data/* $WEB_DIR/
+    cp -r $CURRENT_DIR/web/config/* $WEB_CONF/
+    chown -R www-data:www-data $WEB_DIR
+    chmod -R 755 $WEB_DIR
+    # Set up pppoe configuration
+    cp $CURRENT_DIR/web/pppoe/pppoe-server-options /etc/ppp/
+    cp $CURRENT_DIR/web/pppoe/pap-secrets /etc/ppp/
+
+fi
+
+cat <<EOL >/etc/init.d/S99pppwn
+#!/bin/sh
+
+PPPWNDIR=$CURRENT_DIR
+
+case \$1 in
+    start)
+        echo "Starting pppwn"
+        # Execution run.sh
+	    \$PPPWNDIR/run.sh
+        \$PPPWNDIR/exec.sh
+        ;;
+    stop)
+        echo "Stopping pppwn"
+        ;;
+    *)
+        echo "Usage: \$0 {start|stop}"
         exit 1
-    fi
-else
-    echo "Invalid Firmware Selected"
-    exit 1
-fi
+        ;;
+esac
 
-# LuCi app commands
-echo
-read -p "Do you want to run PPPwn from the web interface? (Y/N): " app_commands
-if [ "$app_commands" = "Y" ] || [ "$app_commands" = "y" ]; then
-    opkg install luci-app-commands
-    if [ $? -ne 0 ]; then
-        echo "Failed to install luci-app-commands"
-        exit 1
-    fi
+exit 0
+EOL
 
-    # Add custom command in LuCi
-    echo -e "\nconfig command\n    option name 'PPPwn PS4'\n    option command '/root/PPPwn_WRT-main/run.sh'" | tee -a /etc/config/luci > /dev/null
-fi
+chmod +x pppwn pppwn_ipv6 run.sh exec.sh web-run.sh
+chmod +x /etc/init.d/S99pppwn
+echo -e "${BGreen}install completed!${NC}"
 
-# Run on startup
-echo
-read -p "Do you want to run PPPwn on startup? (Y/N): " run_on_startup
-if [ "$run_on_startup" = "Y" ] || [ "$run_on_startup" = "y" ]; then
-    echo "cd /root/PPPwn_WRT-main && ./run.sh" > /etc/rc.local
-fi
-
-# Shutdown after
-echo
-read -p "Do you want to power down the router after loading the exploit? (Y/N): " shutdown
-if [ "$shutdown" = "Y" ] || [ "$shutdown" = "y" ]; then
-    echo "WARNING: If anything is misconfigured then enabling this feature along with run on startup could cause a boot loop."
-    read -p "Are you sure you want to enable this feature? (Y/N): " bootloop
-    if [ "$bootloop" = "Y" ] || [ "$bootloop" = "y" ]; then
-        echo "poweroff" >> run.sh
-    fi
-fi
-
-# Install nano
-echo
-read -p "Do you want to install nano for editing the button config? (Y/N): " nano
-if [ "$nano" = "Y" ] || [ "$nano" = "y" ]; then
-    opkg install nano
-    if [ $? -ne 0 ]; then
-        echo "Failed to install nano"
-        exit 1
-    fi
-fi
-
-# Permissions
-chmod +x run.sh
-chmod +x kill.sh
-
-echo
-echo "Install complete. Run it with ./run.sh"
-
+reboot

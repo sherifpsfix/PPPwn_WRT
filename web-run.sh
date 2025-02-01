@@ -1,8 +1,8 @@
 #!/bin/sh
 
 read_json() {
-  local key=$1
-  awk -F"[,:}]" '/"'$key'"/{gsub(/"/, "", $2); print $2}' $CONFIG_FILE | tr -d ' '
+    local key=$1
+    awk -F"[,:}]" '/"'$key'"/{gsub(/"/, "", $2); print $2}' $CONFIG_FILE | tr -d ' '
 }
 
 # Define the path to the configuration file
@@ -38,33 +38,24 @@ CMD="$DIR/$PPPWN_EXEC --interface eth0 --fw $FW_VERSION --stage1 $STAGE1_FILE --
 [ "$REAL_SLEEP" == "true" ] && CMD="$CMD --real-sleep"
 
 reseteth() {
-  ifconfig eth0 down
-  sleep 1
-  ifconfig eth0 up
-  sleep 1
+    ifconfig eth0 down
+    sleep 1
+    ifconfig eth0 up
+    sleep 1
 }
 
-if [ "$AUTO_START" = "true" ]; then
-  /etc/init.d/S50nginx stop
-  /etc/init.d/S49php-fpm stop
-  > $LOG_FILE
-  sleep 1
-  reseteth
-  $CMD >> $LOG_FILE 2>&1
-  if grep -q "\[+\] Done!" $LOG_FILE; then
-    echo "PPPwned"
-    if [ "$HALT_CHOICE" = "true" ]; then
-      sleep 1
-      halt
-    else
-      reseteth
-      pppoe-server -I eth0 -T 60 -N 1 -C isp -S isp -L 192.168.1.1 -R 192.168.1.2 &
-      sleep 5
-      /etc/init.d/S50nginx start
-      /etc/init.d/S49php-fpm start
-    fi
-  fi
-else
-  echo "Auto Start is disabled, skipping PPPwn..."
-  pppoe-server -I eth0 -T 60 -N 1 -C isp -S isp -L 192.168.1.1 -R 192.168.1.2 &
+killall nginx
+killall php-fpm
+killall pppoe-server
+> $LOG_FILE
+sleep 1
+reseteth
+$CMD >> $LOG_FILE 2>&1
+if grep -q "\[+\] Done!" $LOG_FILE; then
+    sleep 5
+    reseteth
+    pppoe-server -I eth0 -T 60 -N 1 -C isp -S isp -L 192.168.1.1 -R 192.168.1.2 &
+    sleep 5
+    /etc/init.d/S50nginx start
+    /etc/init.d/S49php-fpm start
 fi
